@@ -1153,9 +1153,40 @@ class Worksheet:
 
         return [ValueRange.from_json(x) for x in response["valueRanges"]]
 
+    @accepted_kwargs(
+        value_render_option=None,
+        date_time_render_option=None,
+    )
+    def get_row(self, row_range_name, **kwargs):
+        """Takes a row range and returns a dictionary that enables the lookup of values in the row by their
+        corresponding column names.
+
+        Examples::
+
+                # Works
+                >>> worksheet.get_row("B4:E4")
+                {B1: B4, ..., E1: E4}
+
+                # More than one row in range
+                >>> worksheet.get("B4:E5")
+                gspread.exceptions.GSpreadException: row_range_name must be a single row
+
+        """
+        grid_range = a1_range_to_grid_range(row_range_name)
+        if grid_range["startRowIndex"] != grid_range["endRowIndex"] - 1:
+            raise GSpreadException("row_range_name must be a single row")
+
+        start = rowcol_to_a1(1, grid_range["startColumnIndex"] + 1)  # +1 for start, not for end, this is not a mistake
+        end = rowcol_to_a1(1, grid_range["endColumnIndex"])
+        column_range = "{0}:{1}".format(start, end)
+
+        data = self.batch_get([column_range, row_range_name], major_dimension=Dimension.rows, **kwargs)
+
+        return {name: value for name, value in zip(data[0][0], data[1][0])}
+
     # required kwargs is a special value just to allow users to use kwargs
     # and regular args mixed in order to transit to version 6.0.0
-    # This will be be entirely removed in version 6.0.0
+    # This will be entirely removed in version 6.0.0
     @accepted_kwargs(
         range_name=REQUIRED_KWARGS,
         values=REQUIRED_KWARGS,
